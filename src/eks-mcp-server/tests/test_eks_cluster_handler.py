@@ -129,3 +129,38 @@ class TestEksClusterHandler:
         assert len(response.content) == 1
         assert isinstance(response.content[0], TextContent)
         assert 'Failed to list EKS clusters: AWS API Error' in response.content[0].text
+
+    @pytest.mark.asyncio
+    @patch.object(AwsHelper, 'create_boto3_client')
+    async def test_list_clusters_with_all_parameters(self, mock_create_client):
+        """Test listing EKS clusters with all parameters combined."""
+        # Mock the EKS client
+        mock_eks_client = MagicMock()
+        mock_eks_client.list_clusters.return_value = {
+            'clusters': ['cluster1'],
+            'nextToken': 'next_page_token',
+        }
+        mock_create_client.return_value = mock_eks_client
+
+        # Create a mock MCP server and handler
+        mock_mcp = MagicMock()
+        handler = EksClusterHandler(mock_mcp)
+
+        # Create a mock context
+        mock_ctx = MagicMock(spec=Context)
+
+        # Call list_clusters with all parameters
+        response = await handler.list_clusters(
+            mock_ctx, max_results=10, next_token='current_token', include=['all']
+        )
+
+        # Verify the response
+        assert isinstance(response, ListClustersResponse)
+        assert response.isError is False
+        assert response.clusters == ['cluster1']
+        assert response.next_token == 'next_page_token'
+
+        # Verify that the EKS client was called with all correct parameters
+        mock_eks_client.list_clusters.assert_called_once_with(
+            maxResults=10, nextToken='current_token', include=['all']
+        )
